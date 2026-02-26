@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运动打卡热力图</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0b1a;
+    --surface: #16112b;
+    --surface2: #1e1838;
+    --border: #2d2550;
+    --text: #e8e0ff;
+    --text-muted: #7c6fa0;
+    --accent: #9b59f5;
+    --c0: #1a1530;
+    --c1: #3b1f72;
+    --c2: #6228c4;
+    --c3: #8b3ff0;
+    --c4: #b06aff;
+    --c5: #d4a8ff;
+    --radius: 3px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 900px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .title-group h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
+
+  .title-group p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    text-align: right;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--c4);
+    font-family: 'DM Mono', monospace;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .year-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .year-nav button {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .year-nav button:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .year-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .heatmap-wrapper {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .heatmap-inner {
+    display: flex;
+    gap: 6px;
+    min-width: fit-content;
+  }
+
+  .month-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .month-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 4px;
+    text-align: center;
+  }
+
+  .month-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 12px);
+    gap: 2px;
+  }
+
+  .day-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    position: relative;
+  }
+
+  .day-cell:hover {
+    transform: scale(1.4);
+    z-index: 10;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .day-cell.level-0 { background: var(--c0); }
+  .day-cell.level-1 { background: var(--c1); }
+  .day-cell.level-2 { background: var(--c2); }
+  .day-cell.level-3 { background: var(--c3); }
+  .day-cell.level-4 { background: var(--c4); }
+  .day-cell.level-5 { background: var(--c5); }
+
+  .day-cell.today {
+    outline: 1.5px solid #fff;
+    outline-offset: 1px;
+  }
+
+  .day-cell.future {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 20px;
+    justify-content: flex-end;
+  }
+
+  .legend-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .legend-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius);
+  }
+
+  .week-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 22px;
+    margin-right: 4px;
+  }
+
+  .week-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .streak-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .streak-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .streak-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c4);
+    box-shadow: 0 0 6px var(--c4);
+  }
+
+  .streak-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .streak-text span {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .tooltip {
+    position: fixed;
+    background: #1e1838ee;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .month-section {
+    display: flex;
+    gap: 3px;
+  }
+
+  @media (max-width: 600px) {
+    .stats { gap: 16px; }
+    .card { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="title-group">
+      <h1>🏃 运动打卡热力图</h1>
+      <p>点击格子记录打卡 · 数据自动保存</p>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="total-count">0</div>
+        <div class="stat-label">累计打卡天数</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="streak-count">0</div>
+        <div class="stat-label">当前连续天数</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="month-count">0</div>
+        <div class="stat-label">本月打卡天数</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="year-nav">
+      <button id="prev-year">‹</button>
+      <span class="year-label" id="year-display">2026</span>
+      <button id="next-year">›</button>
+    </div>
+
+    <div style="display:flex; align-items:flex-start;">
+      <div class="week-labels" id="week-labels"></div>
+      <div class="heatmap-wrapper">
+        <div class="heatmap-inner" id="heatmap"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="legend-label">少</span>
+      <div class="legend-cell" style="background:var(--c0)"></div>
+      <div class="legend-cell" style="background:var(--c2)"></div>
+      <div class="legend-cell" style="background:var(--c3)"></div>
+      <div class="legend-cell" style="background:var(--c4)"></div>
+      <div class="legend-cell" style="background:var(--c5)"></div>
+      <span class="legend-label">多</span>
+    </div>
+
+    <div class="streak-bar">
+      <div class="streak-item">
+        <div class="streak-dot"></div>
+        <div class="streak-text">连续最长 <span id="max-streak">0</span> 天</div>
+      </div>
+      <div class="streak-item">
+        <div class="streak-dot" style="background:var(--c2);box-shadow:0 0 6px var(--c2)"></div>
+        <div class="streak-text">今年完成率 <span id="completion-rate">0%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const MONTHS_CN = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const WEEKS_CN = ['日','一','二','三','四','五','六'];
+const STORAGE_KEY = 'exercise_heatmap_v1';
+
+let currentYear = new Date().getFullYear();
+let data = {};
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) data = JSON.parse(saved);
+  } catch(e) { data = {}; }
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function dateKey(year, month, day) {
+  return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function toggleDay(key, el) {
+  const today = new Date();
+  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+  if (key > todayKey) return;
+
+  const current = data[key] || 0;
+  // cycle: 0 -> 1 -> 2 -> 3 -> 0
+  data[key] = current >= 3 ? 0 : current + 1;
+  if (data[key] === 0) delete data[key];
+  saveData();
+  el.className = el.className.replace(/level-\d/, `level-${getLevelForValue(data[key]||0)}`);
+  updateStats();
+}
+
+function getLevelForValue(v) {
+  if (v === 0) return 0;
+  if (v === 1) return 2;
+  if (v === 2) return 4;
+  return 5;
+}
+
+function buildHeatmap() {
+  const heatmap = document.getElementById('heatmap');
+  heatmap.innerHTML = '';
+
+  const today = new Date();
+  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+  for (let m = 0; m < 12; m++) {
+    const col = document.createElement('div');
+    col.className = 'month-col';
+
+    const label = document.createElement('div');
+    label.className = 'month-label';
+    label.textContent = MONTHS_CN[m];
+    col.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,12px);gap:2px;';
+
+    const firstDay = new Date(currentYear, m, 1).getDay();
+    // padding
+    for (let i = 0; i < firstDay; i++) {
+      const pad = document.createElement('div');
+      pad.style.cssText = 'width:12px;height:12px;';
+      grid.appendChild(pad);
+    }
+
+    const daysInMonth = new Date(currentYear, m+1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = dateKey(currentYear, m, d);
+      const val = data[key] || 0;
+      const level = getLevelForValue(val);
+
+      const cell = document.createElement('div');
+      cell.className = `day-cell level-${level}`;
+      if (key === todayKey) cell.classList.add('today');
+      if (key > todayKey) cell.classList.add('future');
+
+      cell.addEventListener('click', () => toggleDay(key, cell));
+      cell.addEventListener('mouseenter', (e) => showTooltip(e, key, val, d, m));
+      cell.addEventListener('mouseleave', hideTooltip);
+      cell.addEventListener('mousemove', moveTooltip);
+
+      grid.appendChild(cell);
+    }
+
+    col.appendChild(grid);
+    heatmap.appendChild(col);
+  }
+
+  // week labels
+  const wl = document.getElementById('week-labels');
+  wl.innerHTML = '';
+  ['日','一','二','三','四','五','六'].forEach(w => {
+    const el = document.createElement('div');
+    el.className = 'week-label';
+    el.textContent = w;
+    el.style.marginBottom = '2px';
+    wl.appendChild(el);
+  });
+}
+
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(e, key, val, d, m) {
+  const labels = ['未打卡', '已打卡 ⚡', '训练中 🔥', '超额完成 💪'];
+  tooltip.textContent = `${currentYear}年${m+1}月${d}日 · ${labels[val] || '未打卡'}`;
+  tooltip.style.opacity = '1';
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  tooltip.style.left = (e.clientX + 12) + 'px';
+  tooltip.style.top = (e.clientY - 28) + 'px';
+}
+
+function hideTooltip() {
+  tooltip.style.opacity = '0';
+}
+
+function updateStats() {
+  const today = new Date();
+  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+  // total
+  const total = Object.keys(data).filter(k => data[k] > 0).length;
+  document.getElementById('total-count').textContent = total;
+
+  // this month
+  const ym = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  const monthTotal = Object.keys(data).filter(k => k.startsWith(ym) && data[k] > 0).length;
+  document.getElementById('month-count').textContent = monthTotal;
+
+  // current streak
+  let streak = 0;
+  let d = new Date();
+  while(true) {
+    const k = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+    if (data[k] > 0) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else break;
+  }
+  document.getElementById('streak-count').textContent = streak;
+
+  // max streak
+  const allKeys = Object.keys(data).filter(k => data[k] > 0).sort();
+  let maxStreak = 0, cur = 0, prev = null;
+  allKeys.forEach(k => {
+    if (prev) {
+      const pd = new Date(prev), cd = new Date(k);
+      const diff = (cd - pd) / 86400000;
+      if (diff === 1) { cur++; }
+      else { cur = 1; }
+    } else { cur = 1; }
+    if (cur > maxStreak) maxStreak = cur;
+    prev = k;
+  });
+  document.getElementById('max-streak').textContent = maxStreak;
+
+  // completion rate for current year
+  const yearStart = new Date(currentYear, 0, 1);
+  const yearEnd = currentYear === today.getFullYear() ? today : new Date(currentYear, 11, 31);
+  const totalDays = Math.floor((yearEnd - yearStart) / 86400000) + 1;
+  const doneDays = Object.keys(data).filter(k => k.startsWith(`${currentYear}-`) && data[k] > 0).length;
+  const rate = totalDays > 0 ? Math.round(doneDays / totalDays * 100) : 0;
+  document.getElementById('completion-rate').textContent = `${rate}%`;
+}
+
+document.getElementById('prev-year').addEventListener('click', () => {
+  currentYear--;
+  document.getElementById('year-display').textContent = currentYear;
+  buildHeatmap();
+  updateStats();
+});
+
+document.getElementById('next-year').addEventListener('click', () => {
+  currentYear++;
+  document.getElementById('year-display').textContent = currentYear;
+  buildHeatmap();
+  updateStats();
+});
+
+loadData();
+buildHeatmap();
+updateStats();
+document.getElementById('year-display').textContent = currentYear;
+</script>
+</body>
+</html>
